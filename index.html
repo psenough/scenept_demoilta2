@@ -1,0 +1,372 @@
+<!DOCTYPE html>
+<html><head>
+<meta http-equiv="content-type" content="text/html; charset=UTF-8">
+<title>ScenePT Demoilta#2 5 July 2014</title>
+<style>
+
+ 	@font-face {
+		font-family: 'Neuropol';
+		src: url('NEUROPOL.ttf') format('truetype');
+		font-weight: normal;
+		font-style: normal;
+	}
+	
+	body {
+		background: url('bg.jpg');
+		overflow: hidden;
+	}
+ 	.aligncenter {
+ 		position: absolute;
+ 		top: 50px;
+ 		width: 100%;
+ 		text-align: center;
+ 		margin: auto;
+ 	}
+ 	.aligncenter canvas {
+ 		box-shadow:inset 0px 0px 85px rgba(0,0,0,.5);
+		-webkit-box-shadow:inset 0px 0px 85px rgba(0,0,0,.5);
+		-moz-box-shadow:inset 0px 0px 85px rgba(0,0,0,.5);
+		/*background-color: #fff;*/
+	}
+	#text {
+		position: absolute;
+		top: 0px;
+		font-family: 'Neuropol';
+		color: #fff;
+		width: 100%;
+		height: 480px;
+		margin: auto;
+		text-align: center;
+		font-size: 30px;
+		overflow-y: hidden;
+	}
+
+</style>
+
+
+<script type="text/javascript" src="TinyJSid.js"></script>
+<script type="text/javascript" src="TinyJSidWrapper.js"></script>
+<script src="requestanimationframe.js"></script>
+
+<script type="application/javascript">
+
+
+rand = function(n){
+	return Math.floor(Math.random()*n);
+};
+
+
+const SAMPLES_PER_BUFFER = 8192;	// allowed: buffer sizes: 256, 512, 1024, 2048, 4096, 8192, 16384
+var audioCtx;
+var bufferSource;
+var gainNode;
+var analyzerNode;
+
+const WIDTH= 800;
+const HEIGHT= 200;
+var canvasSpectrum;
+var ctxSpectrum;
+var ctxLegend;
+
+function init() {
+	var xhr = new XMLHttpRequest();
+	xhr.open("GET", 'ghettofunk.sid', true);
+	xhr.responseType = "arraybuffer";
+	xhr.onload = function (oEvent) {
+		isPaused= 1;
+		tinyRSID_loadData(xhr.response);  
+		tinyRSID_playSong(actualSubsong);
+		isPaused= 0;
+
+		initialAudioSetup();
+		
+		//reqAnimationFrame();
+		
+		//redrawSongInfo();
+		drawCanvas();
+
+		startMusicPlayback();
+	};
+	xhr.send(null);
+}
+
+function initialAudioSetup() {
+	if (typeof bufferSource != 'undefined') { 
+		bufferSource.stop(0);
+	} else {
+		setupAudioNodes();
+	}
+}
+
+function setupAudioNodes() {
+	if (typeof audioCtx == 'undefined') {
+		try {
+			window.AudioContext = window.AudioContext||window.webkitAudioContext;
+			audioCtx = new AudioContext();
+		} catch(e) {
+			alert('Web Audio API is not supported in this browser (get Chrome 18 or Firefox 26)');
+		}
+		analyzerNode = audioCtx.createAnalyser();
+
+		var rsidNode = audioCtx.createScriptProcessor(SAMPLES_PER_BUFFER, 0, 1);
+		rsidNode.onaudioprocess = tinyRSID_genSamples;
+		
+		gainNode = audioCtx.createGain();
+					
+		rsidNode.connect(gainNode);
+		gainNode.connect(analyzerNode);
+		analyzerNode.connect(audioCtx.destination);
+	}
+}
+
+function startMusicPlayback() {
+	isPaused= 0;
+
+	if (typeof bufferSource === 'undefined') {
+		bufferSource = audioCtx.createBufferSource();
+		if (!bufferSource.start) {
+		  bufferSource.start = bufferSource.noteOn;
+		  bufferSource.stop = bufferSource.noteOff;
+		}
+		bufferSource.start(0);		
+	}
+}
+
+function drawCanvas() {
+
+	var canvas = document.getElementById("canvas");
+	var ctx = canvas.getContext("2d");
+	var w = ctx.width = 640;
+	var h = ctx.height = 480;
+	
+	//ctx.shadowOffsetX = 5;
+	//ctx.shadowOffsetY = 5;
+	//ctx.shadowColor = 'rgba(0,0,0,0.2)';
+	
+	var size = 20;
+	var numx = 20;
+	var dispx = w / numx;
+	var numy = 20;
+	var dispy = h / numy;
+	var driftx = 8;
+	var drifty = 6;
+	
+	var nuggles = [];
+	for (var x=0; x<numx; x++) {
+		nuggles[x] = [];
+		for (var y=0; y<numy; y++) {
+			nuggles[x][y] = rand(3);
+		}
+	}
+
+	function drawThis() {
+		//var d = new Date();
+		//var timer = d.getTime();
+		
+		color = "rgba(200,200,0,0.8)";
+		ctx.fillStyle = color;
+		
+		for (var x=0; x<numx; x++) {
+			for (var y=0; y<numy; y++) {
+				ctx.save();
+				ctx.translate( x*dispx, y*dispy );
+				ctx.rotate(nuggles[x][y]*(Math.PI/2));
+				ctx.beginPath();
+				ctx.moveTo(-size*.5,-size*.5);
+				ctx.lineTo(0,size);
+				ctx.lineTo(size*.5,-size*.5);
+				//ctx.lineTo(size*.5,size/2*Math.sqrt(3));
+				ctx.fill();
+				ctx.closePath();
+				ctx.restore();
+			}
+		}
+		
+		color = "rgba(0,200,0,0.8)";
+		ctx.fillStyle = color;
+		
+		for (var x=0; x<numx; x++) {
+			for (var y=0; y<numy; y++) {
+				ctx.save();
+				ctx.translate( x*dispx + driftx, y*dispy + drifty);
+				ctx.rotate(nuggles[x][y]*(Math.PI/2));
+				ctx.beginPath();
+				ctx.moveTo(-size*.5,-size*.5);
+				ctx.lineTo(0,size);
+				ctx.lineTo(size*.5,-size*.5);
+				//ctx.lineTo(size*.5,size/2*Math.sqrt(3));
+				ctx.fill();
+				ctx.closePath();
+				ctx.restore();
+			}
+		}
+		
+		color = "rgba(200,0,0,0.4)";
+		ctx.fillStyle = color;
+		
+		for (var x=0; x<numx; x++) {
+			for (var y=0; y<numy; y++) {
+				ctx.save();
+				ctx.translate( x*dispx + driftx*2, y*dispy + drifty*2);
+				ctx.rotate(nuggles[x][y]*(Math.PI/2));
+				ctx.beginPath();
+				ctx.moveTo(-size*.5,-size*.5);
+				ctx.lineTo(0,size);
+				ctx.lineTo(size*.5,-size*.5);
+				//ctx.lineTo(size*.5,size/2*Math.sqrt(3));
+				ctx.fill();
+				ctx.closePath();
+				ctx.restore();
+			}
+		}
+		
+		color = "rgba(0,100,200,0.6)";
+		ctx.fillStyle = color;
+		
+		for (var x=0; x<numx; x++) {
+			for (var y=0; y<numy; y++) {
+				ctx.save();
+				ctx.translate( x*dispx + driftx*3, y*dispy + drifty*3);
+				ctx.rotate(nuggles[x][y]*(Math.PI/2));
+				ctx.beginPath();
+				ctx.moveTo(-size*.5,-size*.5);
+				ctx.lineTo(0,size);
+				ctx.lineTo(size*.5,-size*.5);
+				//ctx.lineTo(size*.5,size/2*Math.sqrt(3));
+				ctx.fill();
+				ctx.closePath();
+				ctx.restore();
+			}
+		}
+	
+	}
+	
+	requestAnimationFrame( animate );
+	
+	var d = new Date();
+	var n = d.getTime();
+	var scrollvalue = 0;
+
+	function animate() {
+		requestAnimationFrame( animate );
+		ctx.clearRect(0,0,w,h);
+		//ctx.fillColor = "rgba(0, 255, 255, 1.0)";
+		//ctx.fillRect(0,0,w,h);
+		drawThis();
+		//setTimeout(loop,20);
+		
+		
+		var dom = document.getElementById('text');
+		if (dom) {
+			var d2 = new Date();
+			var n2 = d2.getTime(); 
+
+			var delta = n2 - n;
+			n = n2;
+			
+			for (var i=0; i<delta*0.5; i++) nuggles[rand(numx)][rand(numy)] = rand(3);
+		
+			scrollvalue += delta*0.02;
+		
+			if (scrollvalue > dom.scrollHeight - dom.clientHeight) scrollvalue = 0;
+		
+			//console.log(n2 + ' ' + n + ' ' + delta + ' ' + scrollvalue);
+		
+			dom.scrollTop = scrollvalue;
+		}
+	}
+}
+
+</script>
+
+</head>
+
+<body onload="init();">
+<div class="aligncenter">
+   		<canvas id="canvas" width="640" height="480"></canvas>
+   		<div id="text">
+   			<br><br><br><br><br><br><br><br><br><br><br><br><br><br><br>
+   			Hello World 2.0<br><br><br>
+   			ps of TPOLM on the keys again<br>
+   			with another important message<br>
+   			for the Lisbon demoscene:<br>
+   			<br>
+   			You have voted,<br>
+   			and the vote says:<br>
+   			<br>
+   			You must be at Artica HQ<br>
+   			in Monte da Caparica<br>
+   			on the 5th of July<br>
+   			at around 14:30<br>
+   			<br>
+   			You are summoned<br>
+   			to attend ScenePT Demoilta#2<br>
+   			<br>
+   			the bestest demowatching session<br>
+   			of all June 2014 demos<br>
+   			this side of Europe<br>
+   			<br><br>
+   			We have:<br>
+   			projector<br>
+   			sound system<br>
+   			internet<br>
+   			and more!<br>
+   			<br><br>
+   			Entrance fee:<br>
+   			same as always,<br>
+   			one superbock<br>
+   			<br><br>
+   			Partyplace located at:<br>
+   			Artica's headquarters<br>
+   			Madan Park / FCT<br>
+   			Edificio 6<br>
+   			Monte da Caparica<br>
+   			<br><br>
+   			Credits:<br>
+   			code & text - ps / TPOLM<br>
+   			music - Dalezy / Triad<br>
+   			SID player - TinyJSid by Wothke<br>
+   			<br><br>
+   			Greetings to:<br>
+   			ScenePT AllStars<br>
+   			Nothing<br>   			
+   			GlenZ<br>
+   			Napalm Core<br>
+   			Volumetric Illusions<br>
+   			Airbag<br>
+   			Radioactive Design<br>
+   			alien)(dream<br>
+   			Spontz<br>
+   			Madwizards<br>
+   			Satori<br>
+   			Rift<br>
+   			MFX<br>
+   			Kewlers<br>
+   			flo<br>
+   			Traction<br>
+   			Accession<br>
+   			Cocoon<br>
+   			Inque<br>
+   			xplsv<br>
+   			ate bit<br>
+   			Conspiracy<br>
+   			Andromeda Software Development<br>
+   			Farbrausch<br>
+   			Kosmoplovci<br>
+   			TPOLM<br>
+   			Enough Records<br>
+   			<br>
+   			and you...
+   			<br><br><br><br><br><br><br><br><br><br><br><br><br><br><br><br>
+   		</div>
+   	</div>
+<!--<section>
+  <div>
+	<canvas id="logo" class="logo" width="800" height="290"></canvas>
+    <canvas id="spectrum" class="spectrum" width="800" height="200"></canvas>
+  </div>
+</section>
+-->
+
+
+</body></html>
